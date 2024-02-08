@@ -149,11 +149,46 @@ app.post("/login", async (req, res) => {
 // Route untuk menampilkan semua hasil pemeriksaan
 app.get("/hasil_pemeriksaan", async (req, res) => {
 	try {
-		const hasilPemeriksaan = await HasilPemeriksaan.findAll();
-		res.status(200).json(hasilPemeriksaan);
+		// Get query parameters for month, year, limit, and page (if provided)
+		const { month, year, limit = 10, page = 1 } = req.query;
+
+		// Set default values for month and year
+		const currentMonth = month || new Date().getMonth() + 1; // Months are zero-based
+		const currentYear = year || new Date().getFullYear();
+
+		// Calculate offset based on pagination parameters
+		const offset = (page - 1) * limit;
+
+		// Query to get hasilPemeriksaan data based on month, year, and pagination
+		const hasilPemeriksaan = await HasilPemeriksaan.findAndCountAll({
+			where: {
+				[Sequelize.Op.and]: [
+					Sequelize.where(
+						Sequelize.fn("MONTH", Sequelize.col("createdAt")),
+						currentMonth
+					),
+					Sequelize.where(
+						Sequelize.fn("YEAR", Sequelize.col("createdAt")),
+						currentYear
+					),
+				],
+			},
+			limit: parseInt(limit, 10),
+			offset: parseInt(offset, 10),
+		});
+
+		const totalData = hasilPemeriksaan.count;
+		const totalPages = Math.ceil(totalData / limit);
+
+		res.status(200).json({
+			totalData,
+			totalPages,
+			currentPage: parseInt(page, 10),
+			result: hasilPemeriksaan.rows,
+		});
 	} catch (error) {
 		console.error("Error fetching hasil pemeriksaan:", error);
-		res.status(500).json({ message: "Internal Server Error" });
+		return res.status(500).json({ message: "Internal Server Error" });
 	}
 });
 
